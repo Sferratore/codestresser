@@ -8,29 +8,29 @@ A static code analysis tool powered by **Machine Learning** that scans Python so
 
 CodeStresser operates in two phases: **static analysis** and **ML-based classification**.
 
-### Phase 1 — Static Analysis
+### 1. Static Analysis
 
 The `StaticAnalyzer` parses the target source code using two complementary techniques:
 
-**AST (Abstract Syntax Tree) analysis** — The analyzer walks the parsed syntax tree using Python's `ast.NodeVisitor` pattern. Each node type (assignments, function calls, control structures, try blocks) triggers a dedicated `visit_*` method that inspects the code for security issues. The analyzer tracks *taint propagation*: variables assigned from untrusted sources (`input()`, `sys.argv`, `os.environ`, `request.GET/POST/args/form`) are marked as **tainted**, and taint flows through assignments, binary operations, and f-strings. When a tainted variable reaches a **sink** (`eval`, `exec`, `os.system`, `subprocess.*`, `cursor.execute`), the analyzer flags it.
+First one, **AST (Abstract Syntax Tree) analysis**: The analyzer walks the parsed syntax tree using Python's `ast.NodeVisitor` pattern. Each node type (assignments, function calls, control structures, try blocks) triggers a dedicated `visit_*` method that inspects the code for security issues. The analyzer tracks *taint propagation*: variables assigned from untrusted sources (`input()`, `sys.argv`, `os.environ`, `request.GET/POST/args/form`) are marked as **tainted**, and taint flows through assignments, binary operations, and f-strings. When a tainted variable reaches a **sink** (`eval`, `exec`, `os.system`, `subprocess.*`, `cursor.execute`), the analyzer flags it.
 
 Detected vulnerability types from AST analysis include:
 
-- **Generally Dangerous Function Call** — direct use of dangerous sinks like `eval`, `exec`, `os.system`
-- **Critical Sink Needing Try** — calls to functions that can fail at runtime (file I/O, JSON parsing, type conversions, SQL execution) used without a surrounding `try/except` block
-- **Tainted Parameter Source** — tainted data flowing directly into a dangerous sink as an argument
-- **Dangerous Dynamic SQL Query** — SQL queries built via string concatenation or f-strings with tainted input (SQL injection risk)
-- **Unsafe Deserialization** — use of `pickle.load`, which can execute arbitrary code on untrusted data
-- **Excessive Control Structure Nesting** — functions with more than 3 levels of nested `if`/`for`/`while` blocks, indicating high complexity
+- **Generally Dangerous Function Call**: direct use of dangerous sinks like `eval`, `exec`, `os.system`
+- **Critical Sink Needing Try**: calls to functions that can fail at runtime (file I/O, JSON parsing, type conversions, SQL execution) used without a surrounding `try/except` block
+- **Tainted Parameter Source**: tainted data flowing directly into a dangerous sink as an argument
+- **Dangerous Dynamic SQL Query**: SQL queries built via string concatenation or f-strings with tainted input (SQL injection risk)
+- **Unsafe Deserialization**: use of `pickle.load`, which can execute arbitrary code on untrusted data
+- **Excessive Control Structure Nesting**: functions with more than 3 levels of nested `if`/`for`/`while` blocks for high complexity related problems
 
-**CFG (Control Flow Graph) analysis** — Using the `radon` library, the analyzer builds a control flow graph and scans for **TOCTOU (Time-Of-Check to Time-Of-Use)** vulnerabilities. It detects patterns where a file existence/permission check (`os.path.exists`, `os.access`, `pathlib.Path.exists`, etc.) is followed by a file operation (`open`, `os.remove`, `shutil.move`, etc.) on the same resource — a race condition that attackers can exploit.
+Second one, **CFG (Control Flow Graph) analysis** — Using the `radon` library, the analyzer builds a control flow graph and scans for **TOCTOU (Time-Of-Check to Time-Of-Use)** vulnerabilities. It detects patterns where a file existence/permission check (`os.path.exists`, `os.access`, `pathlib.Path.exists`, etc.) is followed by a file operation (`open`, `os.remove`, `shutil.move`, etc.) on the same resource. This is a race condition that attackers can exploit.
 
-### Phase 2 — ML Classification
+### 2. ML Classification
 
 Each detected vulnerability is converted into a **13-dimensional feature vector** (counts of each vulnerability type) and fed into two pre-trained models:
 
-- **Severity model** — a `RandomForestClassifier` that predicts a severity label: `Low`, `Medium`, `High`, or `Critical`
-- **Confidence model** — a `RandomForestRegressor` that outputs a confidence score between 0 and 1
+- **Severity model**: `RandomForestClassifier` that predicts a severity label: `Low`, `Medium`, `High`, or `Critical`
+- **Confidence model**: `RandomForestRegressor` that outputs a confidence score between 0 and 1
 
 Both models are trained on a labeled dataset of 120 samples (`training_data/training_data.csv`) with features normalized via `StandardScaler`. The training pipeline splits the data 75/25 for train/test and reports accuracy (severity) and R² score (confidence).
 
@@ -68,23 +68,23 @@ The final output is a JSON report (`report/report.json`) where each entry contai
 
 ## Project Structure
 
-### `prod/` — Core application
+### `prod/` - Core application
 
 | File | Role |
 |---|---|
-| `main.py` | Entry point — trains models, then generates the report |
+| `main.py` | Entry point: trains models, then generates the report |
 | `StaticAnalyzer.py` | AST/CFG vulnerability detection engine |
 | `VulnerabilityModelTrainingPipeline.py` | ML training pipeline (severity + confidence) |
 | `VulnerabilityReportGenerator.py` | Orchestrates analysis and builds the JSON report |
 | `CodeReader.py` | Reads source files by extension; supports multi-language via config |
 | `support_functions.py` | Converts vulnerability lists into feature vectors for the models |
 
-### `model/` — Pre-trained artifacts
+### `model/` - Pre-trained artifacts
 
 | File | Role |
 |---|---|
-| `severity_model.pkl` | Random Forest classifier — predicts Low / Medium / High / Critical |
-| `confidence_model.pkl` | Random Forest regressor — outputs a 0–1 confidence score |
+| `severity_model.pkl` | Random Forest classifier - predicts Low / Medium / High / Critical |
+| `confidence_model.pkl` | Random Forest regressor - outputs a 0–1 confidence score |
 | `scaler.pkl` | StandardScaler fitted on training data |
 
 ### Other directories
@@ -125,7 +125,7 @@ pip install pandas scikit-learn joblib radon
 
 ## Usage
 
-### Quick Start — Train + Analyze in One Step
+### Quick Start - Train + Analyze in One Step
 
 ```bash
 python prod/main.py
@@ -187,9 +187,3 @@ python -m pytest tests/
 | Unsafe deserialization | AST — pickle detection | `pickle.load(file)` |
 | Excessive nesting | AST — control depth tracking | 4+ nested `if`/`for`/`while` |
 | TOCTOU race condition | CFG — check-then-use pattern | `os.path.exists()` → `open()` |
-
----
-
-## Author
-
-[Sferratore](https://github.com/Sferratore)
